@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:security="http://www.springframework.org/schema/security"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/context
+    http://www.springframework.org/schema/context/spring-context.xsd
+    http://www.springframework.org/schema/aop
+    http://www.springframework.org/schema/aop/spring-aop.xsd
+    http://www.springframework.org/schema/tx
+    http://www.springframework.org/schema/tx/spring-tx.xsd
+    http://www.springframework.org/schema/security
+    http://www.springframework.org/schema/security/spring-security.xsd">
+
+    <context:component-scan base-package="com.lzj">
+        <!--
+          排除controller 包 下制定注解controller
+        -->
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"></context:exclude-filter>
+    </context:component-scan>
+    <!--
+      加载jdbc.properties 文件
+   -->
+    <context:property-placeholder location="classpath:jdbc.properties"></context:property-placeholder>
+
+    <!--
+       默认没有登录 重定向到登录页  可以自定义
+    -->
+   <!-- <security:http auto-config="true">
+        <security:intercept-url pattern="/**" access="hasRole('ROLE_USER')"/>
+    </security:http>-->
+
+
+
+    <!--
+      对登录页不做过滤  同匿名访问
+    -->
+    <!--<security:http security="none" pattern="/login"/>-->
+    <security:http auto-config="true" >
+        <!--
+          自定义认证成功 或失败后逻辑代码处理
+          同样可以自定义认证失败  authentication-failed-handler-ref 处理失败逻辑
+        -->
+        <security:form-login login-page="/login"
+                             login-processing-url="/login.do" username-parameter="username"
+                             password-parameter="password"
+                             authentication-success-handler-ref="authenticationSuccessHandlerImpl"
+                            authentication-failure-forward-url="/failed"/>
+        <!-- 表示匿名用户可以访问 -->
+        <security:intercept-url pattern="/login" access="isAnonymous()" />
+        <!--<security:intercept-url pattern="/**" access="hasRole('user')" />-->
+        <!--
+           访问地址url 配置
+           access:需要具备角色
+           method:请求方法
+        -->
+        <security:intercept-url pattern="/user/**"  access="hasAnyRole('admin','user')"   />
+        <security:csrf disabled="true"></security:csrf>
+    </security:http>
+
+
+    <!--
+       自定义认证实现
+    -->
+    <security:authentication-manager alias="authenticationManager">
+        <!--
+          jdbc + userDetails 缓存
+        -->
+        <security:authentication-provider user-service-ref="cachingUserDetailsService">
+        </security:authentication-provider>
+    </security:authentication-manager>
+
+
+    <!--
+     数据源c3p0
+    -->
+    <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+        <property name="driverClass" value="${jdbc.driver}"></property>
+        <property name="jdbcUrl" value="${jdbc.url}"></property>
+        <property name="user" value="${jdbc.user}"></property>
+        <property name="password" value="${jdbc.password}"></property>
+    </bean>
+
+    <bean id="userDetailsService" class="org.springframework.security.core.userdetails.jdbc.JdbcDaoImpl" >
+        <property name="dataSource" ref="dataSource" />
+        <property name="rolePrefix" value="ROLE_"></property>
+    </bean>
+
+
+    <bean id="cachingUserDetailsService" class="org.springframework.security.config.authentication.CachingUserDetailsService">
+        <constructor-arg ref="userDetailsService"></constructor-arg>
+        <!-- 缓存 UserDetails 的 UserCache -->
+        <property name="userCache">
+            <bean class="org.springframework.security.core.userdetails.cache.EhCacheBasedUserCache">
+                <!-- 用于真正缓存的 Ehcache 对象 -->
+                <property name="cache" ref="ehcache4UserDetails"/>
+            </bean>
+        </property>
+    </bean>
+
+    <!-- 将使用默认的 CacheManager 创建一个名为 ehcache4UserDetails 的 Ehcache 对象 -->
+    <bean id="ehcache4UserDetails" class="org.springframework.cache.ehcache.EhCacheFactoryBean"/>
+
+
+
+
+
+
+
+
+
+</beans>
